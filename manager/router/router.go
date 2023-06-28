@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/casbin/casbin/v2"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/static"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
@@ -66,16 +65,12 @@ func Init(cfg *config.Config, logDir string, service service.Service, enforcer *
 		r.Use(otelgin.Middleware(OtelServiceName))
 	}
 
-	// CORS
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowAllOrigins = true
-
 	// Middleware
 	r.Use(gin.Recovery())
 	r.Use(ginzap.Ginzap(logger.GinLogger.Desugar(), time.RFC3339, true))
 	r.Use(ginzap.RecoveryWithZap(logger.GinLogger.Desugar(), true))
 	r.Use(middlewares.Error())
-	r.Use(cors.New(corsConfig))
+	r.Use(middlewares.CORS())
 
 	rbac := middlewares.RBAC(enforcer)
 	jwt, err := middlewares.Jwt(cfg.Auth.JWT, service)
@@ -126,6 +121,14 @@ func Init(cfg *config.Config, logDir string, service service.Service, enforcer *
 	oa.GET(":id", h.GetOauth)
 	oa.GET("", h.GetOauths)
 
+	// Cluster
+	c := apiv1.Group("/clusters", jwt.MiddlewareFunc(), rbac)
+	c.POST("", h.CreateCluster)
+	c.DELETE(":id", h.DestroyCluster)
+	c.PATCH(":id", h.UpdateCluster)
+	c.GET(":id", h.GetCluster)
+	c.GET("", h.GetClusters)
+
 	// Scheduler Cluster
 	sc := apiv1.Group("/scheduler-clusters", jwt.MiddlewareFunc(), rbac)
 	sc.POST("", h.CreateSchedulerCluster)
@@ -169,26 +172,6 @@ func Init(cfg *config.Config, logDir string, service service.Service, enforcer *
 	sp.GET(":id", h.GetSeedPeer)
 	sp.GET("", h.GetSeedPeers)
 
-	// Security Rule
-	sr := apiv1.Group("/security-rules", jwt.MiddlewareFunc(), rbac)
-	sr.POST("", h.CreateSecurityRule)
-	sr.DELETE(":id", h.DestroySecurityRule)
-	sr.PATCH(":id", h.UpdateSecurityRule)
-	sr.GET(":id", h.GetSecurityRule)
-	sr.GET("", h.GetSecurityRules)
-
-	// Security Group
-	sg := apiv1.Group("/security-groups", jwt.MiddlewareFunc(), rbac)
-	sg.POST("", h.CreateSecurityGroup)
-	sg.DELETE(":id", h.DestroySecurityGroup)
-	sg.PATCH(":id", h.UpdateSecurityGroup)
-	sg.GET(":id", h.GetSecurityGroup)
-	sg.GET("", h.GetSecurityGroups)
-	sg.PUT(":id/scheduler-clusters/:scheduler_cluster_id", h.AddSchedulerClusterToSecurityGroup)
-	sg.PUT(":id/seed-peer-clusters/:seed_peer_cluster_id", h.AddSeedPeerClusterToSecurityGroup)
-	sg.PUT(":id/security-rules/:security_rule_id", h.AddSecurityRuleToSecurityGroup)
-	sg.DELETE(":id/security-rules/:security_rule_id", h.DestroySecurityRuleToSecurityGroup)
-
 	// Bucket
 	bucket := apiv1.Group("/buckets", jwt.MiddlewareFunc(), rbac)
 	bucket.POST("", h.CreateBucket)
@@ -211,6 +194,14 @@ func Init(cfg *config.Config, logDir string, service service.Service, enforcer *
 	job.PATCH(":id", h.UpdateJob)
 	job.GET(":id", h.GetJob)
 	job.GET("", h.GetJobs)
+
+	// Model
+	model := apiv1.Group("/models", jwt.MiddlewareFunc(), rbac)
+	model.POST("", h.CreateModel)
+	model.DELETE(":id", h.DestroyModel)
+	model.PATCH(":id", h.UpdateModel)
+	model.GET(":id", h.GetModel)
+	model.GET("", h.GetModels)
 
 	// Compatible with the V1 preheat.
 	pv1 := r.Group("/preheats")

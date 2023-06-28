@@ -1,5 +1,5 @@
 /*
- *     Copyright 2020 The Dragonfly Authors
+ *     Copyright 2023 The Dragonfly Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,36 +26,36 @@ import (
 	"d7y.io/dragonfly/v2/manager/types"
 )
 
-// @Summary Create SecurityRule
+// @Summary Create Cluster
 // @Description Create by json config
-// @Tags SecurityRule
+// @Tags Cluster
 // @Accept json
 // @Produce json
-// @Param SecurityRule body types.CreateSecurityRuleRequest true "SecurityRule"
-// @Success 200 {object} models.SecurityRule
+// @Param Cluster body types.CreateClusterRequest true "Cluster"
+// @Success 200 {object} types.CreateClusterResponse
 // @Failure 400
 // @Failure 404
 // @Failure 500
-// @Router /security-rules [post]
-func (h *Handlers) CreateSecurityRule(ctx *gin.Context) {
-	var json types.CreateSecurityRuleRequest
+// @Router /clusters [post]
+func (h *Handlers) CreateCluster(ctx *gin.Context) {
+	var json types.CreateClusterRequest
 	if err := ctx.ShouldBindJSON(&json); err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"errors": err.Error()})
 		return
 	}
 
-	securityRule, err := h.service.CreateSecurityRule(ctx.Request.Context(), json)
+	cluster, err := h.service.CreateCluster(ctx.Request.Context(), json)
 	if err != nil {
 		ctx.Error(err) // nolint: errcheck
 		return
 	}
 
-	ctx.JSON(http.StatusOK, securityRule)
+	ctx.JSON(http.StatusOK, cluster)
 }
 
-// @Summary Destroy SecurityRule
+// @Summary Destroy Cluster
 // @Description Destroy by id
-// @Tags SecurityRule
+// @Tags Cluster
 // @Accept json
 // @Produce json
 // @Param id path string true "id"
@@ -63,15 +63,15 @@ func (h *Handlers) CreateSecurityRule(ctx *gin.Context) {
 // @Failure 400
 // @Failure 404
 // @Failure 500
-// @Router /securityRules/{id} [delete]
-func (h *Handlers) DestroySecurityRule(ctx *gin.Context) {
-	var params types.SecurityRuleParams
+// @Router /clusters/{id} [delete]
+func (h *Handlers) DestroyCluster(ctx *gin.Context) {
+	var params types.ClusterParams
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"errors": err.Error()})
 		return
 	}
 
-	if err := h.service.DestroySecurityRule(ctx.Request.Context(), params.ID); err != nil {
+	if err := h.service.DestroyCluster(ctx.Request.Context(), params.ID); err != nil {
 		ctx.Error(err) // nolint: errcheck
 		return
 	}
@@ -79,93 +79,93 @@ func (h *Handlers) DestroySecurityRule(ctx *gin.Context) {
 	ctx.Status(http.StatusOK)
 }
 
-// @Summary Update SecurityRule
+// @Summary Update Cluster
 // @Description Update by json config
-// @Tags SecurityRule
+// @Tags Cluster
 // @Accept json
 // @Produce json
 // @Param id path string true "id"
-// @Param SecurityRule body types.UpdateSecurityRuleRequest true "SecurityRule"
-// @Success 200 {object} models.SecurityRule
+// @Param Cluster body types.UpdateClusterRequest true "Cluster"
+// @Success 200 {object} types.UpdateClusterResponse
 // @Failure 400
 // @Failure 404
 // @Failure 500
-// @Router /security-rules/{id} [patch]
-func (h *Handlers) UpdateSecurityRule(ctx *gin.Context) {
-	var params types.SecurityRuleParams
+// @Router /clusters/{id} [patch]
+func (h *Handlers) UpdateCluster(ctx *gin.Context) {
+	var params types.ClusterParams
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"errors": err.Error()})
 		return
 	}
 
-	var json types.UpdateSecurityRuleRequest
+	var json types.UpdateClusterRequest
 	if err := ctx.ShouldBindJSON(&json); err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"errors": err.Error()})
 		return
 	}
 
-	securityRule, err := h.service.UpdateSecurityRule(ctx.Request.Context(), params.ID, json)
+	cluster, err := h.service.UpdateCluster(ctx.Request.Context(), params.ID, json)
 	if err != nil {
 		ctx.Error(err) // nolint: errcheck
 		return
 	}
 
-	ctx.JSON(http.StatusOK, securityRule)
+	ctx.JSON(http.StatusOK, cluster)
 }
 
-// @Summary Get SecurityRule
-// @Description Get SecurityRule by id
-// @Tags SecurityRule
+// @Summary Get Cluster
+// @Description Get Cluster by id
+// @Tags Cluster
 // @Accept json
 // @Produce json
 // @Param id path string true "id"
-// @Success 200 {object} models.SecurityRule
+// @Success 200 {object} types.GetClusterResponse
 // @Failure 400
 // @Failure 404
 // @Failure 500
-// @Router /security-rules/{id} [get]
-func (h *Handlers) GetSecurityRule(ctx *gin.Context) {
-	var params types.SecurityRuleParams
+// @Router /clusters/{id} [get]
+func (h *Handlers) GetCluster(ctx *gin.Context) {
+	var params types.ClusterParams
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"errors": err.Error()})
 		return
 	}
 
-	securityRule, err := h.service.GetSecurityRule(ctx.Request.Context(), params.ID)
+	cluster, err := h.service.GetCluster(ctx.Request.Context(), params.ID)
 	if err != nil {
 		ctx.Error(err) // nolint: errcheck
 		return
 	}
 
-	ctx.JSON(http.StatusOK, securityRule)
+	ctx.JSON(http.StatusOK, cluster)
 }
 
-// @Summary Get SecurityRules
-// @Description Get SecurityRules
-// @Tags SecurityRule
+// @Summary Get Clusters
+// @Description Get Clusters
+// @Tags Cluster
 // @Accept json
 // @Produce json
 // @Param page query int true "current page" default(0)
 // @Param per_page query int true "return max item count, default 10, max 50" default(10) minimum(2) maximum(50)
-// @Success 200 {object} []models.SecurityRule
+// @Success 200 {object} []types.GetClusterResponse
 // @Failure 400
 // @Failure 404
 // @Failure 500
-// @Router /security-rules [get]
-func (h *Handlers) GetSecurityRules(ctx *gin.Context) {
-	var query types.GetSecurityRulesQuery
+// @Router /clusters [get]
+func (h *Handlers) GetClusters(ctx *gin.Context) {
+	var query types.GetClustersQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"errors": err.Error()})
 		return
 	}
 
 	h.setPaginationDefault(&query.Page, &query.PerPage)
-	securityRules, count, err := h.service.GetSecurityRules(ctx.Request.Context(), query)
+	clusters, count, err := h.service.GetClusters(ctx.Request.Context(), query)
 	if err != nil {
 		ctx.Error(err) // nolint: errcheck
 		return
 	}
 
 	h.setPaginationLinkHeader(ctx, query.Page, query.PerPage, int(count))
-	ctx.JSON(http.StatusOK, securityRules)
+	ctx.JSON(http.StatusOK, clusters)
 }

@@ -261,7 +261,6 @@ func (a *announcer) newAnnounceHostRequest() (*schedulerv1.AnnounceHostRequest, 
 		Network: &schedulerv1.Network{
 			TcpConnectionCount:       uint32(len(tcpConnections)),
 			UploadTcpConnectionCount: uint32(len(uploadTCPConnections)),
-			SecurityDomain:           a.config.Host.SecurityDomain,
 			Location:                 a.config.Host.Location,
 			Idc:                      a.config.Host.IDC,
 		},
@@ -309,14 +308,12 @@ func (a *announcer) announceToManager() error {
 		}
 
 		// Start keepalive to manager.
-		go func() {
-			a.managerClient.KeepAlive(a.config.Scheduler.Manager.SeedPeer.KeepAlive.Interval, &managerv1.KeepAliveRequest{
-				SourceType: managerv1.SourceType_SEED_PEER_SOURCE,
-				Hostname:   a.config.Host.Hostname,
-				Ip:         a.config.Host.AdvertiseIP.String(),
-				ClusterId:  uint64(a.config.Scheduler.Manager.SeedPeer.ClusterID),
-			}, a.done)
-		}()
+		go a.managerClient.KeepAlive(a.config.Scheduler.Manager.SeedPeer.KeepAlive.Interval, &managerv1.KeepAliveRequest{
+			SourceType: managerv1.SourceType_SEED_PEER_SOURCE,
+			Hostname:   a.config.Host.Hostname,
+			Ip:         a.config.Host.AdvertiseIP.String(),
+			ClusterId:  uint64(a.config.Scheduler.Manager.SeedPeer.ClusterID),
+		}, a.done)
 	}
 
 	return nil

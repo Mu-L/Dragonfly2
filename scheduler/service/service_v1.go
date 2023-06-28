@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	commonv1 "d7y.io/api/pkg/apis/common/v1"
@@ -42,6 +44,7 @@ import (
 	"d7y.io/dragonfly/v2/pkg/types"
 	"d7y.io/dragonfly/v2/scheduler/config"
 	"d7y.io/dragonfly/v2/scheduler/metrics"
+	"d7y.io/dragonfly/v2/scheduler/networktopology"
 	"d7y.io/dragonfly/v2/scheduler/resource"
 	"d7y.io/dragonfly/v2/scheduler/scheduling"
 	"d7y.io/dragonfly/v2/scheduler/storage"
@@ -63,6 +66,9 @@ type V1 struct {
 
 	// Storage interface.
 	storage storage.Storage
+
+	// Network topology interface.
+	networkTopology networktopology.NetworkTopology
 }
 
 // New v1 version of service instance.
@@ -72,20 +78,21 @@ func NewV1(
 	scheduling scheduling.Scheduling,
 	dynconfig config.DynconfigInterface,
 	storage storage.Storage,
+	networktopology networktopology.NetworkTopology,
 ) *V1 {
 	return &V1{
-		resource:   resource,
-		scheduling: scheduling,
-		config:     cfg,
-		dynconfig:  dynconfig,
-		storage:    storage,
+		resource:        resource,
+		scheduling:      scheduling,
+		config:          cfg,
+		dynconfig:       dynconfig,
+		storage:         storage,
+		networkTopology: networktopology,
 	}
 }
 
 // RegisterPeerTask registers peer and triggers seed peer download task.
 func (v *V1) RegisterPeerTask(ctx context.Context, req *schedulerv1.PeerTaskRequest) (*schedulerv1.RegisterResult, error) {
-	logger.WithPeer(req.PeerHost.Id, req.TaskId, req.PeerId).Infof("register peer task request: %#v %#v",
-		req, req.UrlMeta)
+	logger.WithPeer(req.PeerHost.Id, req.TaskId, req.PeerId).Infof("register peer task request: %#v", req)
 
 	// Store resource.
 	task := v.storeTask(ctx, req, commonv2.TaskType_DFDAEMON)
@@ -296,7 +303,7 @@ func (v *V1) ReportPeerResult(ctx context.Context, req *schedulerv1.PeerResult) 
 			metrics.DownloadPeerBackToSourceFailureCount.WithLabelValues(priority.String(), peer.Task.Type.String(),
 				peer.Task.Tag, peer.Task.Application, peer.Host.Type.Name()).Inc()
 
-			go v.createRecord(peer, parents, req)
+			go v.createDownloadRecord(peer, parents, req)
 			v.handleTaskFailure(ctx, peer.Task, req.GetSourceError(), nil)
 			v.handlePeerFailure(ctx, peer)
 			return nil
@@ -306,24 +313,25 @@ func (v *V1) ReportPeerResult(ctx context.Context, req *schedulerv1.PeerResult) 
 		metrics.DownloadPeerFailureCount.WithLabelValues(priority.String(), peer.Task.Type.String(),
 			peer.Task.Tag, peer.Task.Application, peer.Host.Type.Name()).Inc()
 
-		go v.createRecord(peer, parents, req)
+		go v.createDownloadRecord(peer, parents, req)
 		v.handlePeerFailure(ctx, peer)
 		return nil
 	}
 
-	// Collect DownloadPeerDuration metrics.
-	metrics.DownloadPeerDuration.WithLabelValues(priority.String(), peer.Task.Type.String(),
-		peer.Task.Tag, peer.Task.Application, peer.Host.Type.Name()).Observe(float64(req.Cost))
-
 	peer.Log.Info("report success peer")
 	if peer.FSM.Is(resource.PeerStateBackToSource) {
-		go v.createRecord(peer, parents, req)
+		go v.createDownloadRecord(peer, parents, req)
 		v.handleTaskSuccess(ctx, peer.Task, req)
 		v.handlePeerSuccess(ctx, peer)
+		metrics.DownloadPeerDuration.WithLabelValues(priority.String(), peer.Task.Type.String(),
+			peer.Task.Tag, peer.Task.Application, peer.Host.Type.Name()).Observe(float64(req.Cost))
 		return nil
 	}
 
-	go v.createRecord(peer, parents, req)
+	metrics.DownloadPeerDuration.WithLabelValues(priority.String(), peer.Task.Type.String(),
+		peer.Task.Tag, peer.Task.Application, peer.Host.Type.Name()).Observe(float64(req.Cost))
+
+	go v.createDownloadRecord(peer, parents, req)
 	v.handlePeerSuccess(ctx, peer)
 	return nil
 }
@@ -513,7 +521,6 @@ func (v *V1) AnnounceHost(ctx context.Context, req *schedulerv1.AnnounceHostRequ
 			options = append(options, resource.WithNetwork(resource.Network{
 				TCPConnectionCount:       req.Network.TcpConnectionCount,
 				UploadTCPConnectionCount: req.Network.UploadTcpConnectionCount,
-				SecurityDomain:           req.Network.SecurityDomain,
 				Location:                 req.Network.Location,
 				IDC:                      req.Network.Idc,
 			}))
@@ -602,7 +609,6 @@ func (v *V1) AnnounceHost(ctx context.Context, req *schedulerv1.AnnounceHostRequ
 		host.Network = resource.Network{
 			TCPConnectionCount:       req.Network.TcpConnectionCount,
 			UploadTCPConnectionCount: req.Network.UploadTcpConnectionCount,
-			SecurityDomain:           req.Network.SecurityDomain,
 			Location:                 req.Network.Location,
 			IDC:                      req.Network.Idc,
 		}
@@ -646,6 +652,110 @@ func (v *V1) LeaveHost(ctx context.Context, req *schedulerv1.LeaveHostRequest) e
 
 	host.LeavePeers()
 	return nil
+}
+
+// SyncProbes sync probes of the host.
+func (v *V1) SyncProbes(stream schedulerv1.Scheduler_SyncProbesServer) error {
+	if v.networkTopology == nil {
+		return status.Errorf(codes.Unimplemented, "network topology is not enabled")
+	}
+
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+
+			logger.Errorf("receive error: %s", err.Error())
+			return err
+		}
+
+		logger := logger.WithHost(req.Host.Id, req.Host.Hostname, req.Host.Ip)
+		switch syncProbesRequest := req.GetRequest().(type) {
+		case *schedulerv1.SyncProbesRequest_ProbeStartedRequest:
+			// Find probed hosts in network topology. Based on the source host information,
+			// the most candidate hosts will be evaluated.
+			logger.Info("receive SyncProbesRequest_ProbeStartedRequest")
+			probedHostIDs, err := v.networkTopology.FindProbedHostIDs(req.Host.Id)
+			if err != nil {
+				logger.Error(err)
+				return status.Error(codes.FailedPrecondition, err.Error())
+			}
+
+			var probedHosts []*commonv1.Host
+			for _, probedHostID := range probedHostIDs {
+				probedHost, loaded := v.resource.HostManager().Load(probedHostID)
+				if !loaded {
+					logger.Warnf("probed host %s not found", probedHostID)
+					continue
+				}
+
+				probedHosts = append(probedHosts, &commonv1.Host{
+					Id:           probedHost.ID,
+					Ip:           probedHost.IP,
+					Hostname:     probedHost.Hostname,
+					Port:         probedHost.Port,
+					DownloadPort: probedHost.DownloadPort,
+					Location:     probedHost.Network.Location,
+					Idc:          probedHost.Network.IDC,
+				})
+			}
+
+			if len(probedHosts) == 0 {
+				logger.Error("probed host not found")
+				return status.Error(codes.NotFound, "probed host not found")
+			}
+
+			logger.Infof("probe started: %#v", probedHosts)
+			if err := stream.Send(&schedulerv1.SyncProbesResponse{
+				Hosts: probedHosts,
+			}); err != nil {
+				logger.Error(err)
+				return err
+			}
+		case *schedulerv1.SyncProbesRequest_ProbeFinishedRequest:
+			// Store probes in network topology. First create the association between
+			// source host and destination host, and then store the value of probe.
+			logger.Info("receive SyncProbesRequest_ProbeFinishedRequest")
+			for _, probe := range syncProbesRequest.ProbeFinishedRequest.Probes {
+				probedHost, loaded := v.resource.HostManager().Load(probe.Host.Id)
+				if !loaded {
+					logger.Errorf("host %s not found", probe.Host.Id)
+					continue
+				}
+
+				if err := v.networkTopology.Store(req.Host.Id, probedHost.ID); err != nil {
+					logger.Errorf("store failed: %s", err.Error())
+					continue
+				}
+
+				if err := v.networkTopology.Probes(req.Host.Id, probe.Host.Id).Enqueue(&networktopology.Probe{
+					Host:      probedHost,
+					RTT:       probe.Rtt.AsDuration(),
+					CreatedAt: probe.CreatedAt.AsTime(),
+				}); err != nil {
+					logger.Errorf("enqueue failed: %s", err.Error())
+					continue
+				}
+
+				logger.Infof("probe finished: %#v", probe)
+			}
+		case *schedulerv1.SyncProbesRequest_ProbeFailedRequest:
+			// Log failed probes.
+			logger.Info("receive SyncProbesRequest_ProbeFailedRequest")
+			var failedProbedHostIDs []string
+			for _, failedProbe := range syncProbesRequest.ProbeFailedRequest.Probes {
+				failedProbedHostIDs = append(failedProbedHostIDs, failedProbe.Host.Id)
+			}
+
+			logger.Warnf("probe failed: %#v", failedProbedHostIDs)
+		default:
+			msg := fmt.Sprintf("receive unknow request: %#v", syncProbesRequest)
+			logger.Error(msg)
+			return status.Error(codes.FailedPrecondition, msg)
+		}
+	}
 }
 
 // triggerTask triggers the first download of the task.
@@ -726,8 +836,11 @@ func (v *V1) triggerTask(ctx context.Context, req *schedulerv1.PeerTaskRequest, 
 
 // triggerSeedPeerTask starts to trigger seed peer task.
 func (v *V1) triggerSeedPeerTask(ctx context.Context, rg *http.Range, task *resource.Task) {
+	ctx, cancel := context.WithCancel(trace.ContextWithSpan(context.Background(), trace.SpanFromContext(ctx)))
+	defer cancel()
+
 	task.Log.Info("trigger seed peer")
-	peer, endOfPiece, err := v.resource.SeedPeer().TriggerTask(ctx, rg, task)
+	seedPeer, endOfPiece, err := v.resource.SeedPeer().TriggerTask(ctx, rg, task)
 	if err != nil {
 		task.Log.Errorf("trigger seed peer failed: %s", err.Error())
 		v.handleTaskFailure(ctx, task, nil, err)
@@ -735,9 +848,9 @@ func (v *V1) triggerSeedPeerTask(ctx context.Context, rg *http.Range, task *reso
 	}
 
 	// Update the task status first to help peer scheduling evaluation and scoring.
-	peer.Log.Info("trigger seed peer successfully")
+	seedPeer.Log.Info("trigger seed peer successfully")
 	v.handleTaskSuccess(ctx, task, endOfPiece)
-	v.handlePeerSuccess(ctx, peer)
+	v.handlePeerSuccess(ctx, seedPeer)
 }
 
 // storeTask stores a new task or reuses a previous task.
@@ -772,9 +885,8 @@ func (v *V1) storeHost(ctx context.Context, peerHost *schedulerv1.PeerHost) *res
 	host, loaded := v.resource.HostManager().Load(peerHost.Id)
 	if !loaded {
 		options := []resource.HostOption{resource.WithNetwork(resource.Network{
-			SecurityDomain: peerHost.SecurityDomain,
-			Location:       peerHost.Location,
-			IDC:            peerHost.Idc,
+			Location: peerHost.Location,
+			IDC:      peerHost.Idc,
 		})}
 		if clientConfig, err := v.dynconfig.GetSchedulerClusterClientConfig(); err == nil && clientConfig.LoadLimit > 0 {
 			options = append(options, resource.WithConcurrentUploadLimit(int32(clientConfig.LoadLimit)))
@@ -793,7 +905,6 @@ func (v *V1) storeHost(ctx context.Context, peerHost *schedulerv1.PeerHost) *res
 
 	host.Port = peerHost.RpcPort
 	host.DownloadPort = peerHost.DownPort
-	host.Network.SecurityDomain = peerHost.SecurityDomain
 	host.Network.Location = peerHost.Location
 	host.Network.IDC = peerHost.Idc
 	host.UpdatedAt.Store(time.Now())
@@ -1241,8 +1352,8 @@ func (v *V1) handleTaskFailure(ctx context.Context, task *resource.Task, backToS
 	}
 }
 
-// createRecord stores peer download records.
-func (v *V1) createRecord(peer *resource.Peer, parents []*resource.Peer, req *schedulerv1.PeerResult) {
+// createDownloadRecord stores peer download records.
+func (v *V1) createDownloadRecord(peer *resource.Peer, parents []*resource.Peer, req *schedulerv1.PeerResult) {
 	var parentRecords []storage.Parent
 	for _, parent := range parents {
 		parentRecord := storage.Parent{
@@ -1306,7 +1417,6 @@ func (v *V1) createRecord(peer *resource.Peer, parents []*resource.Peer, req *sc
 		parentRecord.Host.Network = resource.Network{
 			TCPConnectionCount:       parent.Host.Network.TCPConnectionCount,
 			UploadTCPConnectionCount: parent.Host.Network.UploadTCPConnectionCount,
-			SecurityDomain:           parent.Host.Network.SecurityDomain,
 			Location:                 parent.Host.Network.Location,
 			IDC:                      parent.Host.Network.IDC,
 		}
@@ -1418,7 +1528,6 @@ func (v *V1) createRecord(peer *resource.Peer, parents []*resource.Peer, req *sc
 	download.Host.Network = resource.Network{
 		TCPConnectionCount:       peer.Host.Network.TCPConnectionCount,
 		UploadTCPConnectionCount: peer.Host.Network.UploadTCPConnectionCount,
-		SecurityDomain:           peer.Host.Network.SecurityDomain,
 		Location:                 peer.Host.Network.Location,
 		IDC:                      peer.Host.Network.IDC,
 	}

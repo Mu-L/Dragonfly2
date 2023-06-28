@@ -63,6 +63,12 @@ type Service interface {
 	GetOauth(context.Context, uint) (*models.Oauth, error)
 	GetOauths(context.Context, types.GetOauthsQuery) ([]models.Oauth, int64, error)
 
+	CreateCluster(context.Context, types.CreateClusterRequest) (*types.CreateClusterResponse, error)
+	DestroyCluster(context.Context, uint) error
+	UpdateCluster(context.Context, uint, types.UpdateClusterRequest) (*types.UpdateClusterResponse, error)
+	GetCluster(context.Context, uint) (*types.GetClusterResponse, error)
+	GetClusters(context.Context, types.GetClustersQuery) ([]types.GetClusterResponse, int64, error)
+
 	CreateSeedPeerCluster(context.Context, types.CreateSeedPeerClusterRequest) (*models.SeedPeerCluster, error)
 	DestroySeedPeerCluster(context.Context, uint) error
 	UpdateSeedPeerCluster(context.Context, uint, types.UpdateSeedPeerClusterRequest) (*models.SeedPeerCluster, error)
@@ -92,22 +98,6 @@ type Service interface {
 	GetScheduler(context.Context, uint) (*models.Scheduler, error)
 	GetSchedulers(context.Context, types.GetSchedulersQuery) ([]models.Scheduler, int64, error)
 
-	CreateSecurityRule(context.Context, types.CreateSecurityRuleRequest) (*models.SecurityRule, error)
-	DestroySecurityRule(context.Context, uint) error
-	UpdateSecurityRule(context.Context, uint, types.UpdateSecurityRuleRequest) (*models.SecurityRule, error)
-	GetSecurityRule(context.Context, uint) (*models.SecurityRule, error)
-	GetSecurityRules(context.Context, types.GetSecurityRulesQuery) ([]models.SecurityRule, int64, error)
-
-	CreateSecurityGroup(context.Context, types.CreateSecurityGroupRequest) (*models.SecurityGroup, error)
-	DestroySecurityGroup(context.Context, uint) error
-	UpdateSecurityGroup(context.Context, uint, types.UpdateSecurityGroupRequest) (*models.SecurityGroup, error)
-	GetSecurityGroup(context.Context, uint) (*models.SecurityGroup, error)
-	GetSecurityGroups(context.Context, types.GetSecurityGroupsQuery) ([]models.SecurityGroup, int64, error)
-	AddSchedulerClusterToSecurityGroup(context.Context, uint, uint) error
-	AddSeedPeerClusterToSecurityGroup(context.Context, uint, uint) error
-	AddSecurityRuleToSecurityGroup(context.Context, uint, uint) error
-	DestroySecurityRuleToSecurityGroup(context.Context, uint, uint) error
-
 	CreateBucket(context.Context, types.CreateBucketRequest) error
 	DestroyBucket(context.Context, string) error
 	GetBucket(context.Context, string) (*objectstorage.BucketMetadata, error)
@@ -133,6 +123,12 @@ type Service interface {
 	UpdateApplication(context.Context, uint, types.UpdateApplicationRequest) (*models.Application, error)
 	GetApplication(context.Context, uint) (*models.Application, error)
 	GetApplications(context.Context, types.GetApplicationsQuery) ([]models.Application, int64, error)
+
+	CreateModel(context.Context, types.CreateModelRequest) (*models.Model, error)
+	DestroyModel(context.Context, uint) error
+	UpdateModel(context.Context, uint, types.UpdateModelRequest) (*models.Model, error)
+	GetModel(context.Context, uint) (*models.Model, error)
+	GetModels(context.Context, types.GetModelsQuery) ([]models.Model, int64, error)
 }
 
 type service struct {

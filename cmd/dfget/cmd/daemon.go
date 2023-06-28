@@ -27,7 +27,6 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
 
 	"d7y.io/dragonfly/v2/client/config"
 	server "d7y.io/dragonfly/v2/client/daemon"
@@ -105,8 +104,16 @@ func initDaemonDfpath(cfg *config.DaemonOption) (dfpath.Dfpath, error) {
 		options = append(options, dfpath.WithWorkHome(cfg.WorkHome))
 	}
 
+	if os.FileMode(cfg.WorkHomeMode) != os.FileMode(0) {
+		options = append(options, dfpath.WithWorkHomeMode(os.FileMode(cfg.WorkHomeMode)))
+	}
+
 	if cfg.CacheDir != "" {
 		options = append(options, dfpath.WithCacheDir(cfg.CacheDir))
+	}
+
+	if os.FileMode(cfg.CacheDirMode) != os.FileMode(0) {
+		options = append(options, dfpath.WithCacheDirMode(os.FileMode(cfg.CacheDirMode)))
 	}
 
 	if cfg.LogDir != "" {
@@ -121,11 +128,13 @@ func initDaemonDfpath(cfg *config.DaemonOption) (dfpath.Dfpath, error) {
 		options = append(options, dfpath.WithDownloadUnixSocketPath(cfg.Download.DownloadGRPC.UnixListen.Socket))
 	}
 
-	dataDir := dfpath.DefaultDataDir
 	if cfg.DataDir != "" {
-		dataDir = cfg.DataDir
+		options = append(options, dfpath.WithDataDir(cfg.DataDir))
 	}
-	options = append(options, dfpath.WithDataDir(dataDir))
+
+	if os.FileMode(cfg.DataDirMode) != os.FileMode(0) {
+		options = append(options, dfpath.WithDataDirMode(os.FileMode(cfg.DataDirMode)))
+	}
 
 	return dfpath.New(options...)
 }
@@ -178,10 +187,6 @@ func runDaemon(d dfpath.Dfpath) error {
 	}()
 
 	logger.Infof("daemon is launched by pid: %d", viper.GetInt("launcher"))
-
-	// daemon config values
-	s, _ := yaml.Marshal(cfg)
-	logger.Infof("client daemon configuration:\n%s", string(s))
 
 	ff := dependency.InitMonitor(cfg.PProfPort, cfg.Telemetry)
 	defer ff()

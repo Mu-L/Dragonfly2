@@ -23,7 +23,6 @@ import (
 	"path"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
 	"d7y.io/dragonfly/v2/cmd/dependency"
 	logger "d7y.io/dragonfly/v2/internal/dflog"
@@ -89,6 +88,7 @@ func Execute() {
 func init() {
 	// Initialize default scheduler config.
 	cfg = config.New()
+
 	// Initialize command and config.
 	dependency.InitCommandAndConfig(rootCmd, true, cfg)
 }
@@ -111,22 +111,15 @@ func initDfpath(cfg *config.ServerConfig) (dfpath.Dfpath, error) {
 		options = append(options, dfpath.WithPluginDir(cfg.PluginDir))
 	}
 
-	dataDir := dfpath.DefaultDataDir
 	if cfg.DataDir != "" {
-		dataDir = cfg.DataDir
+		options = append(options, dfpath.WithDataDir(cfg.DataDir))
 	}
-	options = append(options, dfpath.WithDataDir(dataDir))
 
 	return dfpath.New(options...)
 }
 
 func runScheduler(ctx context.Context, d dfpath.Dfpath) error {
-	logger.Infof("Version:\n%s", version.Version())
-
-	// scheduler config values.
-	s, _ := yaml.Marshal(cfg)
-
-	logger.Infof("scheduler configuration:\n%s", string(s))
+	logger.Infof("version:\n%s", version.Version())
 
 	ff := dependency.InitMonitor(cfg.PProfPort, cfg.Telemetry)
 	defer ff()

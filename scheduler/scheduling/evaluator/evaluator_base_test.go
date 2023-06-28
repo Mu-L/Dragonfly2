@@ -36,7 +36,7 @@ var (
 	mockRawHost = resource.Host{
 		ID:              mockHostID,
 		Type:            types.HostTypeNormal,
-		Hostname:        "hostname",
+		Hostname:        "foo",
 		IP:              "127.0.0.1",
 		Port:            8003,
 		DownloadPort:    8001,
@@ -57,7 +57,7 @@ var (
 	mockRawSeedHost = resource.Host{
 		ID:              mockSeedHostID,
 		Type:            types.HostTypeSuperSeed,
-		Hostname:        "hostname_seed",
+		Hostname:        "bar",
 		IP:              "127.0.0.1",
 		Port:            8003,
 		DownloadPort:    8001,
@@ -106,7 +106,6 @@ var (
 	mockNetwork = resource.Network{
 		TCPConnectionCount:       10,
 		UploadTCPConnectionCount: 1,
-		SecurityDomain:           mockHostSecurityDomain,
 		Location:                 mockHostLocation,
 		IDC:                      mockHostIDC,
 	}
@@ -138,11 +137,10 @@ var (
 	mockTaskFilters                 = []string{"bar"}
 	mockTaskHeader                  = map[string]string{"content-length": "100"}
 	mockTaskPieceLength       int32 = 2048
-	mockHostID                      = idgen.HostIDV2("127.0.0.1", "hostname")
-	mockSeedHostID                  = idgen.HostIDV2("127.0.0.1", "hostname_seed")
-	mockHostSecurityDomain          = "security_domain"
-	mockHostLocation                = "location"
-	mockHostIDC                     = "idc"
+	mockHostID                      = idgen.HostIDV2("127.0.0.1", "foo")
+	mockSeedHostID                  = idgen.HostIDV2("127.0.0.1", "bar")
+	mockHostLocation                = "bas"
+	mockHostIDC                     = "baz"
 	mockPeerID                      = idgen.PeerIDV2()
 )
 
@@ -177,7 +175,7 @@ func TestEvaluatorBase_Evaluate(t *testing.T) {
 		expect          func(t *testing.T, score float64)
 	}{
 		{
-			name: "security domain is not the same",
+			name: "evaluate parent",
 			parent: resource.NewPeer(idgen.PeerIDV1("127.0.0.1"),
 				resource.NewTask(mockTaskID, mockTaskURL, mockTaskTag, mockTaskApplication, commonv2.TaskType_DFDAEMON, mockTaskFilters, mockTaskHeader, mockTaskBackToSourceLimit, resource.WithDigest(mockTaskDigest), resource.WithPieceLength(mockTaskPieceLength)),
 				resource.NewHost(
@@ -190,16 +188,14 @@ func TestEvaluatorBase_Evaluate(t *testing.T) {
 					mockRawHost.Port, mockRawHost.DownloadPort, mockRawHost.Type)),
 			totalPieceCount: 1,
 			mock: func(parent *resource.Peer, child *resource.Peer) {
-				parent.Host.Network.SecurityDomain = "foo"
-				child.Host.Network.SecurityDomain = "bar"
 			},
 			expect: func(t *testing.T, score float64) {
 				assert := assert.New(t)
-				assert.Equal(score, float64(0))
+				assert.Equal(score, float64(0.35))
 			},
 		},
 		{
-			name: "security domain is same",
+			name: "evaluate parent with pieces",
 			parent: resource.NewPeer(idgen.PeerIDV1("127.0.0.1"),
 				resource.NewTask(mockTaskID, mockTaskURL, mockTaskTag, mockTaskApplication, commonv2.TaskType_DFDAEMON, mockTaskFilters, mockTaskHeader, mockTaskBackToSourceLimit, resource.WithDigest(mockTaskDigest), resource.WithPieceLength(mockTaskPieceLength)),
 				resource.NewHost(
@@ -212,54 +208,6 @@ func TestEvaluatorBase_Evaluate(t *testing.T) {
 					mockRawHost.Port, mockRawHost.DownloadPort, mockRawHost.Type)),
 			totalPieceCount: 1,
 			mock: func(parent *resource.Peer, child *resource.Peer) {
-				parent.Host.Network.SecurityDomain = "bac"
-				child.Host.Network.SecurityDomain = "bac"
-				parent.FinishedPieces.Set(0)
-			},
-			expect: func(t *testing.T, score float64) {
-				assert := assert.New(t)
-				assert.Equal(score, float64(0.55))
-			},
-		},
-		{
-			name: "parent security domain is empty",
-			parent: resource.NewPeer(idgen.PeerIDV1("127.0.0.1"),
-				resource.NewTask(mockTaskID, mockTaskURL, mockTaskTag, mockTaskApplication, commonv2.TaskType_DFDAEMON, mockTaskFilters, mockTaskHeader, mockTaskBackToSourceLimit, resource.WithDigest(mockTaskDigest), resource.WithPieceLength(mockTaskPieceLength)),
-				resource.NewHost(
-					mockRawSeedHost.ID, mockRawSeedHost.IP, mockRawSeedHost.Hostname,
-					mockRawSeedHost.Port, mockRawSeedHost.DownloadPort, mockRawSeedHost.Type)),
-			child: resource.NewPeer(idgen.PeerIDV1("127.0.0.1"),
-				resource.NewTask(mockTaskID, mockTaskURL, mockTaskTag, mockTaskApplication, commonv2.TaskType_DFDAEMON, mockTaskFilters, mockTaskHeader, mockTaskBackToSourceLimit, resource.WithDigest(mockTaskDigest), resource.WithPieceLength(mockTaskPieceLength)),
-				resource.NewHost(
-					mockRawHost.ID, mockRawHost.IP, mockRawHost.Hostname,
-					mockRawHost.Port, mockRawHost.DownloadPort, mockRawHost.Type)),
-			totalPieceCount: 1,
-			mock: func(parent *resource.Peer, child *resource.Peer) {
-				parent.Host.Network.SecurityDomain = ""
-				child.Host.Network.SecurityDomain = "baz"
-				parent.FinishedPieces.Set(0)
-			},
-			expect: func(t *testing.T, score float64) {
-				assert := assert.New(t)
-				assert.Equal(score, float64(0.55))
-			},
-		},
-		{
-			name: "child security domain is empty",
-			parent: resource.NewPeer(idgen.PeerIDV1("127.0.0.1"),
-				resource.NewTask(mockTaskID, mockTaskURL, mockTaskTag, mockTaskApplication, commonv2.TaskType_DFDAEMON, mockTaskFilters, mockTaskHeader, mockTaskBackToSourceLimit, resource.WithDigest(mockTaskDigest), resource.WithPieceLength(mockTaskPieceLength)),
-				resource.NewHost(
-					mockRawSeedHost.ID, mockRawSeedHost.IP, mockRawSeedHost.Hostname,
-					mockRawSeedHost.Port, mockRawSeedHost.DownloadPort, mockRawSeedHost.Type)),
-			child: resource.NewPeer(idgen.PeerIDV1("127.0.0.1"),
-				resource.NewTask(mockTaskID, mockTaskURL, mockTaskTag, mockTaskApplication, commonv2.TaskType_DFDAEMON, mockTaskFilters, mockTaskHeader, mockTaskBackToSourceLimit, resource.WithDigest(mockTaskDigest), resource.WithPieceLength(mockTaskPieceLength)),
-				resource.NewHost(
-					mockRawHost.ID, mockRawHost.IP, mockRawHost.Hostname,
-					mockRawHost.Port, mockRawHost.DownloadPort, mockRawHost.Type)),
-			totalPieceCount: 1,
-			mock: func(parent *resource.Peer, child *resource.Peer) {
-				parent.Host.Network.SecurityDomain = "baz"
-				child.Host.Network.SecurityDomain = ""
 				parent.FinishedPieces.Set(0)
 			},
 			expect: func(t *testing.T, score float64) {

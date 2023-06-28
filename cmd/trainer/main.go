@@ -1,5 +1,5 @@
 /*
- *     Copyright 2020 The Dragonfly Authors
+ *     Copyright 2023 The Dragonfly Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,10 @@
  * limitations under the License.
  */
 
-package database
+package main
 
-import (
-	"context"
-	"fmt"
+import "d7y.io/dragonfly/v2/cmd/trainer/cmd"
 
-	logger "d7y.io/dragonfly/v2/internal/dflog"
-)
-
-type redisLogger struct{}
-
-func (rl *redisLogger) Printf(ctx context.Context, format string, v ...any) {
-	logger.CoreLogger.Desugar().Info(fmt.Sprintf(format, v...))
+func main() {
+	cmd.Execute()
 }

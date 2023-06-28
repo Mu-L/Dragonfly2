@@ -1,5 +1,5 @@
 /*
- *     Copyright 2020 The Dragonfly Authors
+ *     Copyright 2023 The Dragonfly Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,29 +14,23 @@
  * limitations under the License.
  */
 
-package database
+package rpcserver
 
 import (
-	"context"
+	"google.golang.org/grpc"
 
-	"github.com/go-redis/redis/v8"
-
-	"d7y.io/dragonfly/v2/manager/config"
+	"d7y.io/dragonfly/v2/pkg/rpc/trainer/server"
+	"d7y.io/dragonfly/v2/trainer/config"
+	"d7y.io/dragonfly/v2/trainer/storage"
 )
 
-func NewRedis(cfg *config.RedisConfig) (redis.UniversalClient, error) {
-	redis.SetLogger(&redisLogger{})
-	client := redis.NewUniversalClient(&redis.UniversalOptions{
-		Addrs:      cfg.Addrs,
-		MasterName: cfg.MasterName,
-		DB:         cfg.DB,
-		Username:   cfg.Username,
-		Password:   cfg.Password,
-	})
-
-	if err := client.Ping(context.Background()).Err(); err != nil {
-		return nil, err
-	}
-
-	return client, nil
+// New creates a new grpc server.
+func New(
+	cfg *config.Config,
+	storage storage.Storage,
+	opts ...grpc.ServerOption,
+) *grpc.Server {
+	return server.New(
+		newTrainerServerV1(cfg, storage),
+		opts...)
 }

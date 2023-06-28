@@ -47,6 +47,7 @@ import (
 	"d7y.io/dragonfly/v2/client/daemon/announcer"
 	"d7y.io/dragonfly/v2/client/daemon/gc"
 	"d7y.io/dragonfly/v2/client/daemon/metrics"
+	"d7y.io/dragonfly/v2/client/daemon/networktopology"
 	"d7y.io/dragonfly/v2/client/daemon/objectstorage"
 	"d7y.io/dragonfly/v2/client/daemon/peer"
 	"d7y.io/dragonfly/v2/client/daemon/proxy"
@@ -107,6 +108,7 @@ type clientDaemon struct {
 	schedulerClient schedulerclient.V1
 	certifyClient   *certify.Certify
 	announcer       announcer.Announcer
+	networkTopology networktopology.NetworkTopology
 }
 
 func New(opt *config.DaemonOption, d dfpath.Dfpath) (Daemon, error) {
@@ -127,14 +129,13 @@ func New(opt *config.DaemonOption, d dfpath.Dfpath) (Daemon, error) {
 	}
 
 	host := &schedulerv1.PeerHost{
-		Id:             idgen.HostIDV2(opt.Host.AdvertiseIP.String(), opt.Host.Hostname),
-		Ip:             opt.Host.AdvertiseIP.String(),
-		RpcPort:        int32(opt.Download.PeerGRPC.TCPListen.PortRange.Start),
-		DownPort:       0,
-		Hostname:       opt.Host.Hostname,
-		SecurityDomain: opt.Host.SecurityDomain,
-		Location:       opt.Host.Location,
-		Idc:            opt.Host.IDC,
+		Id:       idgen.HostIDV2(opt.Host.AdvertiseIP.String(), opt.Host.Hostname),
+		Ip:       opt.Host.AdvertiseIP.String(),
+		RpcPort:  int32(opt.Download.PeerGRPC.TCPListen.PortRange.Start),
+		DownPort: 0,
+		Hostname: opt.Host.Hostname,
+		Location: opt.Host.Location,
+		Idc:      opt.Host.IDC,
 	}
 
 	var (
@@ -240,8 +241,9 @@ func New(opt *config.DaemonOption, d dfpath.Dfpath) (Daemon, error) {
 			logger.Infof("step 4: leave task %s/%s state ok", request.TaskID, request.PeerID)
 		}
 	}
+	dirMode := os.FileMode(opt.DataDirMode)
 	storageManager, err := storage.NewStorageManager(opt.Storage.StoreStrategy, &opt.Storage,
-		gcCallback, storage.WithGCInterval(opt.GCInterval.Duration))
+		gcCallback, dirMode, storage.WithGCInterval(opt.GCInterval.Duration))
 	if err != nil {
 		return nil, err
 	}
@@ -684,6 +686,19 @@ func (cd *clientDaemon) Serve() error {
 		}
 	}()
 
+	// serve network topology
+	if cd.Option.NetworkTopology.Enable {
+		cd.networkTopology, err = networktopology.NewNetworkTopology(&cd.Option, cd.schedPeerHost.Id, cd.schedPeerHost.RpcPort, cd.schedPeerHost.DownPort, cd.schedulerClient)
+		if err != nil {
+			logger.Errorf("failed to create network topology: %v", err)
+			return err
+		}
+
+		// serve network topology service
+		logger.Infof("serve network topology")
+		go cd.networkTopology.Serve()
+	}
+
 	if cd.Option.AliveTime.Duration > 0 {
 		g.Go(func() error {
 			for {
@@ -834,6 +849,8 @@ func (cd *clientDaemon) Stop() {
 		if err := cd.announcer.Stop(); err != nil {
 			logger.Errorf("announcer stop failed %s", err)
 		}
+
+		cd.networkTopology.Stop()
 
 		if err := cd.dynconfig.Stop(); err != nil {
 			logger.Errorf("dynconfig client closed failed %s", err)

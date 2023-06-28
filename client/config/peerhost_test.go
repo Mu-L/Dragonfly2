@@ -247,13 +247,16 @@ func TestPeerHostOption_Load(t *testing.T) {
 		GCInterval: util.Duration{
 			Duration: 60000000000,
 		},
-		Metrics:     ":8000",
-		WorkHome:    "/tmp/dragonfly/dfdaemon/",
-		CacheDir:    "/var/cache/dragonfly/",
-		LogDir:      "/var/log/dragonfly/",
-		PluginDir:   "/tmp/dragonfly/dfdaemon/plugins/",
-		DataDir:     "/var/lib/dragonfly/",
-		KeepStorage: false,
+		Metrics:      ":8000",
+		WorkHome:     "/tmp/dragonfly/dfdaemon/",
+		WorkHomeMode: 0755,
+		CacheDir:     "/var/cache/dragonfly/",
+		CacheDirMode: 0700,
+		LogDir:       "/var/log/dragonfly/",
+		PluginDir:    "/tmp/dragonfly/dfdaemon/plugins/",
+		DataDir:      "/var/lib/dragonfly/",
+		DataDirMode:  0700,
+		KeepStorage:  false,
 		Scheduler: SchedulerOption{
 			Manager: ManagerOption{
 				Enable: false,
@@ -285,11 +288,10 @@ func TestPeerHostOption_Load(t *testing.T) {
 			DisableAutoBackSource: true,
 		},
 		Host: HostOption{
-			Hostname:       "d7y.io",
-			SecurityDomain: "d7y.io",
-			Location:       "0.0.0.0",
-			IDC:            "d7y",
-			AdvertiseIP:    net.IPv4zero,
+			Hostname:    "d7y.io",
+			Location:    "0.0.0.0",
+			IDC:         "d7y",
+			AdvertiseIP: net.IPv4zero,
 		},
 		Download: DownloadOption{
 			TotalRateLimit: util.RateLimit{
@@ -512,6 +514,12 @@ func TestPeerHostOption_Load(t *testing.T) {
 		},
 		Announcer: AnnouncerOption{
 			SchedulerInterval: 1000000000,
+		},
+		NetworkTopology: NetworkTopologyOption{
+			Enable: true,
+			Probe: ProbeOption{
+				Interval: 20 * time.Minute,
+			},
 		},
 	}
 
@@ -750,6 +758,24 @@ func TestPeerHostOption_Validate(t *testing.T) {
 			expect: func(t *testing.T, err error) {
 				assert := assert.New(t)
 				assert.EqualError(err, "certSpec requires parameter validityPeriod")
+			},
+		},
+		{
+			name:   "probe requires parameter interval",
+			config: NewDaemonConfig(),
+			mock: func(cfg *DaemonConfig) {
+				cfg.Scheduler.NetAddrs = []dfnet.NetAddr{
+					{
+						Type: dfnet.TCP,
+						Addr: "127.0.0.1:8002",
+					},
+				}
+				cfg.NetworkTopology.Enable = true
+				cfg.NetworkTopology.Probe.Interval = 0
+			},
+			expect: func(t *testing.T, err error) {
+				assert := assert.New(t)
+				assert.EqualError(err, "probe requires parameter interval")
 			},
 		},
 	}

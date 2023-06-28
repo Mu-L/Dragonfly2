@@ -17,30 +17,13 @@
 package cache
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/go-redis/cache/v8"
+	"github.com/go-redis/redis/v8"
 
 	"d7y.io/dragonfly/v2/manager/config"
-	"d7y.io/dragonfly/v2/manager/database"
-)
-
-const (
-	// Seed Peer prefix of cache key.
-	SeedPeerNamespace = "seed-peers"
-
-	// Peer prefix of cache key.
-	PeerNamespace = "peers"
-
-	// Scheduler prefix of cache key.
-	SchedulerNamespace = "schedulers"
-
-	// Applications prefix of cache key.
-	ApplicationsNamespace = "applications"
-
-	// Buckets prefix of cache key.
-	BucketsNamespace = "buckets"
+	pkgredis "d7y.io/dragonfly/v2/pkg/redis"
 )
 
 // Cache is cache client.
@@ -54,7 +37,13 @@ func New(cfg *config.Config) (*Cache, error) {
 	var localCache *cache.TinyLFU
 	localCache = cache.NewTinyLFU(cfg.Cache.Local.Size, cfg.Cache.Local.TTL)
 
-	rdb, err := database.NewRedis(&cfg.Database.Redis)
+	rdb, err := pkgredis.NewRedis(&redis.UniversalOptions{
+		Addrs:      cfg.Database.Redis.Addrs,
+		MasterName: cfg.Database.Redis.MasterName,
+		DB:         cfg.Database.Redis.DB,
+		Username:   cfg.Database.Redis.Username,
+		Password:   cfg.Database.Redis.Password,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -68,44 +57,4 @@ func New(cfg *config.Config) (*Cache, error) {
 		}),
 		TTL: cfg.Cache.Redis.TTL,
 	}, nil
-}
-
-// Make namespace cache key.
-func MakeNamespaceCacheKey(namespace string) string {
-	return fmt.Sprintf("manager:%s", namespace)
-}
-
-// Make cache key.
-func MakeCacheKey(namespace string, id string) string {
-	return fmt.Sprintf("%s:%s", MakeNamespaceCacheKey(namespace), id)
-}
-
-// Make cache key for seed peer.
-func MakeSeedPeerCacheKey(clusterID uint, hostname, ip string) string {
-	return MakeCacheKey(SeedPeerNamespace, fmt.Sprintf("%d-%s-%s", clusterID, hostname, ip))
-}
-
-// Make cache key for scheduler.
-func MakeSchedulerCacheKey(clusterID uint, hostname, ip string) string {
-	return MakeCacheKey(SchedulerNamespace, fmt.Sprintf("%d-%s-%s", clusterID, hostname, ip))
-}
-
-// Make cache key for peer.
-func MakePeerCacheKey(hostname, ip string) string {
-	return MakeCacheKey(PeerNamespace, fmt.Sprintf("%s-%s", hostname, ip))
-}
-
-// Make schedulers cache key for peer.
-func MakeSchedulersCacheKeyForPeer(hostname, ip string) string {
-	return MakeCacheKey(PeerNamespace, fmt.Sprintf("%s-%s:schedulers", hostname, ip))
-}
-
-// Make applications cache key.
-func MakeApplicationsCacheKey() string {
-	return MakeNamespaceCacheKey(ApplicationsNamespace)
-}
-
-// Make cache key for bucket.
-func MakeBucketCacheKey(name string) string {
-	return MakeCacheKey(BucketsNamespace, name)
 }

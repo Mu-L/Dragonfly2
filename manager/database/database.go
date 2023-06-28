@@ -27,6 +27,7 @@ import (
 	"d7y.io/dragonfly/v2/manager/config"
 	"d7y.io/dragonfly/v2/manager/models"
 	"d7y.io/dragonfly/v2/manager/types"
+	pkgredis "d7y.io/dragonfly/v2/pkg/redis"
 	schedulerconfig "d7y.io/dragonfly/v2/scheduler/config"
 )
 
@@ -65,7 +66,13 @@ func New(cfg *config.Config) (*Database, error) {
 		return nil, fmt.Errorf("invalid database type %s", cfg.Database.Type)
 	}
 
-	rdb, err := NewRedis(&cfg.Database.Redis)
+	rdb, err := pkgredis.NewRedis(&redis.UniversalOptions{
+		Addrs:      cfg.Database.Redis.Addrs,
+		MasterName: cfg.Database.Redis.MasterName,
+		DB:         cfg.Database.Redis.DB,
+		Username:   cfg.Database.Redis.Username,
+		Password:   cfg.Database.Redis.Password,
+	})
 	if err != nil {
 		logger.Errorf("redis: %s", err.Error())
 		return nil, err
@@ -84,8 +91,6 @@ func migrate(db *gorm.DB) error {
 		&models.SeedPeer{},
 		&models.SchedulerCluster{},
 		&models.Scheduler{},
-		&models.SecurityRule{},
-		&models.SecurityGroup{},
 		&models.User{},
 		&models.Oauth{},
 		&models.Config{},
@@ -108,8 +113,8 @@ func seed(cfg *config.Config, db *gorm.DB) error {
 			},
 			Name: DefaultSchedulerClusterName,
 			Config: map[string]any{
-				"filter_parent_limit":       schedulerconfig.DefaultSchedulerFilterParentLimit,
-				"filter_parent_range_limit": schedulerconfig.DefaultSchedulerFilterParentRangeLimit,
+				"candidate_parent_limit": schedulerconfig.DefaultSchedulerCandidateParentLimit,
+				"filter_parent_limit":    schedulerconfig.DefaultSchedulerFilterParentLimit,
 			},
 			ClientConfig: map[string]any{
 				"load_limit":             schedulerconfig.DefaultPeerConcurrentUploadLimit,
@@ -137,7 +142,6 @@ func seed(cfg *config.Config, db *gorm.DB) error {
 			Config: map[string]any{
 				"load_limit": schedulerconfig.DefaultSeedPeerConcurrentUploadLimit,
 			},
-			IsDefault: true,
 		}).Error; err != nil {
 			return err
 		}

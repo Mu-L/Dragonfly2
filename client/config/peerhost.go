@@ -52,25 +52,29 @@ type DaemonOption struct {
 	GCInterval util.Duration `mapstructure:"gcInterval" yaml:"gcInterval"`
 	Metrics    string        `mapstructure:"metrics" yaml:"metrics"`
 
-	WorkHome    string `mapstructure:"workHome" yaml:"workHome"`
-	CacheDir    string `mapstructure:"cacheDir" yaml:"cacheDir"`
-	LogDir      string `mapstructure:"logDir" yaml:"logDir"`
-	PluginDir   string `mapstructure:"pluginDir" yaml:"pluginDir"`
-	DataDir     string `mapstructure:"dataDir" yaml:"dataDir"`
-	KeepStorage bool   `mapstructure:"keepStorage" yaml:"keepStorage"`
+	WorkHome     string `mapstructure:"workHome" yaml:"workHome"`
+	WorkHomeMode uint32 `mapstructure:"workHomeMode" yaml:"workHomeMode"`
+	CacheDir     string `mapstructure:"cacheDir" yaml:"cacheDir"`
+	CacheDirMode uint32 `mapstructure:"cacheDirMode" yaml:"cacheDirMode"`
+	LogDir       string `mapstructure:"logDir" yaml:"logDir"`
+	PluginDir    string `mapstructure:"pluginDir" yaml:"pluginDir"`
+	DataDir      string `mapstructure:"dataDir" yaml:"dataDir"`
+	DataDirMode  uint32 `mapstructure:"dataDirMode" yaml:"dataDirMode"`
+	KeepStorage  bool   `mapstructure:"keepStorage" yaml:"keepStorage"`
 
-	Security      GlobalSecurityOption `mapstructure:"security" yaml:"security"`
-	Scheduler     SchedulerOption      `mapstructure:"scheduler" yaml:"scheduler"`
-	Host          HostOption           `mapstructure:"host" yaml:"host"`
-	Download      DownloadOption       `mapstructure:"download" yaml:"download"`
-	Proxy         *ProxyOption         `mapstructure:"proxy" yaml:"proxy"`
-	Upload        UploadOption         `mapstructure:"upload" yaml:"upload"`
-	ObjectStorage ObjectStorageOption  `mapstructure:"objectStorage" yaml:"objectStorage"`
-	Storage       StorageOption        `mapstructure:"storage" yaml:"storage"`
-	Health        *HealthOption        `mapstructure:"health" yaml:"health"`
-	Reload        ReloadOption         `mapstructure:"reload" yaml:"reload"`
-	Network       *NetworkOption       `mapstructure:"network" yaml:"network"`
-	Announcer     AnnouncerOption      `mapstructure:"announcer" yaml:"announcer"`
+	Security        GlobalSecurityOption  `mapstructure:"security" yaml:"security"`
+	Scheduler       SchedulerOption       `mapstructure:"scheduler" yaml:"scheduler"`
+	Host            HostOption            `mapstructure:"host" yaml:"host"`
+	Download        DownloadOption        `mapstructure:"download" yaml:"download"`
+	Proxy           *ProxyOption          `mapstructure:"proxy" yaml:"proxy"`
+	Upload          UploadOption          `mapstructure:"upload" yaml:"upload"`
+	ObjectStorage   ObjectStorageOption   `mapstructure:"objectStorage" yaml:"objectStorage"`
+	Storage         StorageOption         `mapstructure:"storage" yaml:"storage"`
+	Health          *HealthOption         `mapstructure:"health" yaml:"health"`
+	Reload          ReloadOption          `mapstructure:"reload" yaml:"reload"`
+	Network         *NetworkOption        `mapstructure:"network" yaml:"network"`
+	Announcer       AnnouncerOption       `mapstructure:"announcer" yaml:"announcer"`
+	NetworkTopology NetworkTopologyOption `mapstructure:"networkTopology" yaml:"networkTopology"`
 }
 
 func NewDaemonConfig() *DaemonOption {
@@ -213,6 +217,12 @@ func (p *DaemonOption) Validate() error {
 		}
 	}
 
+	if p.NetworkTopology.Enable {
+		if p.NetworkTopology.Probe.Interval <= 0 {
+			return errors.New("probe requires parameter interval")
+		}
+	}
+
 	return nil
 }
 
@@ -281,8 +291,6 @@ type KeepAliveOption struct {
 }
 
 type HostOption struct {
-	// SecurityDomain is the security domain
-	SecurityDomain string `mapstructure:"securityDomain" yaml:"securityDomain"`
 	// IDC for scheduler
 	IDC string `mapstructure:"idc" yaml:"idc"`
 	// Location for scheduler
@@ -936,4 +944,17 @@ type NetworkOption struct {
 type AnnouncerOption struct {
 	// SchedulerInterval is the interval of announcing scheduler.
 	SchedulerInterval time.Duration `mapstructure:"schedulerInterval" yaml:"schedulerInterval"`
+}
+
+type NetworkTopologyOption struct {
+	// Enable network topology service.
+	Enable bool `mapstructure:"enable" yaml:"enable"`
+
+	// Probe is the configuration of probe.
+	Probe ProbeOption `mapstructure:"probe" yaml:"probe"`
+}
+
+type ProbeOption struct {
+	// Interval is the interval of probing hosts.
+	Interval time.Duration `mapstructure:"interval" yaml:"interval"`
 }

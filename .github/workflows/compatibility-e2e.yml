@@ -23,7 +23,7 @@ env:
 jobs:
   compatibility_e2e_tests:
     name: e2e_tests_with_${{ matrix.module }}
-    timeout-minutes: 40
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -58,7 +58,7 @@ jobs:
 
       - name: Get dependencies
         run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@v2.8.3
+          go install github.com/onsi/ginkgo/v2/ginkgo@v2.9.4
           mkdir -p /tmp/artifact
           go mod vendor
 
@@ -69,10 +69,11 @@ jobs:
           install: true
 
       - name: Setup Kind
-        uses: engineerd/setup-kind@v0.5.0
+        uses: helm/kind-action@v1.7.0
         with:
           version: ${{ env.KIND_VERSION }}
           config: ${{ env.KIND_CONFIG_PATH }}
+          cluster_name: kind
 
       - name: Build images
         run: |

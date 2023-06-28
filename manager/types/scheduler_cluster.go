@@ -33,7 +33,6 @@ type CreateSchedulerClusterRequest struct {
 	Scopes            *SchedulerClusterScopes       `json:"scopes" binding:"omitempty"`
 	IsDefault         bool                          `json:"is_default" binding:"omitempty"`
 	SeedPeerClusterID uint                          `json:"seed_peer_cluster_id" binding:"omitempty"`
-	SecurityGroupID   uint                          `json:"security_group_id" binding:"omitempty"`
 }
 
 type UpdateSchedulerClusterRequest struct {
@@ -44,7 +43,6 @@ type UpdateSchedulerClusterRequest struct {
 	Scopes            *SchedulerClusterScopes       `json:"scopes" binding:"omitempty"`
 	IsDefault         bool                          `json:"is_default" binding:"omitempty"`
 	SeedPeerClusterID uint                          `json:"seed_peer_cluster_id" binding:"omitempty"`
-	SecurityGroupID   uint                          `json:"security_group_id" binding:"omitempty"`
 }
 
 type GetSchedulerClustersQuery struct {
@@ -54,8 +52,8 @@ type GetSchedulerClustersQuery struct {
 }
 
 type SchedulerClusterConfig struct {
-	FilterParentLimit      uint32 `yaml:"filterParentLimit" mapstructure:"filterParentLimit" json:"filter_parent_limit" binding:"omitempty,gte=1,lte=20"`
-	FilterParentRangeLimit uint32 `yaml:"filterParentRangeLimit" mapstructure:"filterParentRangeLimit" json:"filter_parent_range_limit" binding:"omitempty,gte=10,lte=1000"`
+	CandidateParentLimit uint32 `yaml:"candidateParentLimit" mapstructure:"candidateParentLimit" json:"candidate_parent_limit" binding:"omitempty,gte=1,lte=20"`
+	FilterParentLimit    uint32 `yaml:"filterParentLimit" mapstructure:"filterParentLimit" json:"filter_parent_limit" binding:"omitempty,gte=10,lte=1000"`
 }
 
 type SchedulerClusterClientConfig struct {

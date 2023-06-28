@@ -34,7 +34,7 @@ var (
 	mockRawHost = Host{
 		ID:              mockHostID,
 		Type:            types.HostTypeNormal,
-		Hostname:        "hostname",
+		Hostname:        "foo",
 		IP:              "127.0.0.1",
 		Port:            8003,
 		DownloadPort:    8001,
@@ -55,7 +55,7 @@ var (
 	mockRawSeedHost = Host{
 		ID:              mockSeedHostID,
 		Type:            types.HostTypeSuperSeed,
-		Hostname:        "hostname_seed",
+		Hostname:        "bar",
 		IP:              "127.0.0.1",
 		Port:            8003,
 		DownloadPort:    8001,
@@ -104,7 +104,6 @@ var (
 	mockNetwork = Network{
 		TCPConnectionCount:       10,
 		UploadTCPConnectionCount: 1,
-		SecurityDomain:           mockHostSecurityDomain,
 		Location:                 mockHostLocation,
 		IDC:                      mockHostIDC,
 	}
@@ -127,11 +126,10 @@ var (
 		Platform:   "darwin",
 	}
 
-	mockHostID             = idgen.HostIDV2("127.0.0.1", "hostname")
-	mockSeedHostID         = idgen.HostIDV2("127.0.0.1", "hostname_seed")
-	mockHostSecurityDomain = "security_domain"
-	mockHostLocation       = "location"
-	mockHostIDC            = "idc"
+	mockHostID       = idgen.HostIDV2("127.0.0.1", "foo")
+	mockSeedHostID   = idgen.HostIDV2("127.0.0.1", "bar")
+	mockHostLocation = "baz"
+	mockHostIDC      = "bas"
 )
 
 func TestHost_NewHost(t *testing.T) {

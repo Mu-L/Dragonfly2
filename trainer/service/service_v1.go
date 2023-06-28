@@ -1,5 +1,5 @@
 /*
- *     Copyright 2020 The Dragonfly Authors
+ *     Copyright 2023 The Dragonfly Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,30 @@
  * limitations under the License.
  */
 
-package models
+package service
 
-type SecurityGroup struct {
-	BaseModel
-	Name              string             `gorm:"column:name;type:varchar(256);index:uk_security_group_name,unique;not null;comment:name" json:"name"`
-	BIO               string             `gorm:"column:bio;type:varchar(1024);comment:biography" json:"bio"`
-	SecurityRules     []SecurityRule     `gorm:"many2many:security_group_security_rule;" json:"security_rules"`
-	SchedulerClusters []SchedulerCluster `json:"-"`
+import (
+	"d7y.io/dragonfly/v2/trainer/config"
+	"d7y.io/dragonfly/v2/trainer/storage"
+)
+
+// V1 is the interface for v1 version of the service.
+type V1 struct {
+	// Trainer service config.
+	config *config.Config
+
+	// Storage Interface.
+	storage storage.Storage
+}
+
+// New v1 version of service instance.
+func NewV1(
+	cfg *config.Config,
+	storage storage.Storage,
+
+) *V1 {
+	return &V1{
+		config:  cfg,
+		storage: storage,
+	}
 }
